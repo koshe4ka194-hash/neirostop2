@@ -3,331 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Extension</title>
+    <title>Neuro-Stop 3D Extension</title>
     <style>
-        /* Общие стили сброса */
+        /* Общие стили */
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: transparent;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: transparent;
+            font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', 'Segoe UI', sans-serif; /* Более детский шрифт */
         }
 
-        /* ВАЖНО: По умолчанию iframe должен пропускать клики сквозь себя,
-           чтобы ребенок мог играть в игру Genially под ним.
-           Мы включаем pointer-events только когда срабатывает ПАУЗА.
-        */
         #app-container {
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* Пропускаем клики */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: background-color 0.3s ease;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; justify-content: center; align-items: center;
+            transition: background-color 0.5s ease;
+            perspective: 1000px; /* Для 3D эффекта */
         }
 
-        /* Состояние ПАУЗЫ */
         #app-container.paused {
-            pointer-events: all; /* Блокируем клики, чтобы они не ушли в игру */
-            background-color: rgba(0, 0, 0, 0.6); /* Затемнение 60% */
-            backdrop-filter: blur(2px); /* Легкое размытие (опционально) */
+            pointer-events: all;
+            background-color: rgba(40, 30, 60, 0.4); /* Мягкое фиолетовое затемнение */
+            backdrop-filter: blur(3px);
         }
 
-        /* Карточка паузы */
-        .pause-card {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            text-align: center;
-            max-width: 80%;
-            width: 320px;
+        /* --- НОВЫЙ 3D ВИЗУАЛ КАРТОЧКИ --- */
+        .pause-card-wrap {
             opacity: 0;
-            transform: scale(0.9);
-            transition: all 0.3s ease-out;
-            display: none; /* Скрыта по умолчанию */
+            transform: rotateX(20deg) translateZ(-100px); /* Начальная позиция для анимации */
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Эффект пружины при появлении */
+            transform-style: preserve-3d;
+            display: none;
         }
 
-        /* Показ карточки */
-        #app-container.paused .pause-card {
+        #app-container.paused .pause-card-wrap {
             display: block;
             opacity: 1;
-            transform: scale(1);
+            transform: rotateX(0deg) translateZ(0); /* Конечная позиция */
+        }
+
+        .pause-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+            padding: 40px 30px;
+            border-radius: 30px;
+            text-align: center;
+            max-width: 85%; width: 380px;
+            /* 3D объем и свечение */
+            box-shadow: 
+                0 20px 40px rgba(0,0,0,0.15), /* Глубокая тень */
+                0 0 20px rgba(100, 180, 255, 0.4), /* Внешнее свечение */
+                inset 0 0 20px rgba(255,255,255,0.8); /* Внутренний блик */
+            border: 3px solid rgba(255, 255, 255, 0.7);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Анимация блика света */
+        .pause-card::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to bottom right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+            transform: rotate(45deg);
+            animation: shineEffect 3s infinite ease-in-out;
+            pointer-events: none;
+        }
+        @keyframes shineEffect {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
+        }
+
+        .pause-icon {
+            font-size: 50px; margin-bottom: 15px;
+            text-shadow: 0 5px 10px rgba(0,0,0,0.1);
         }
 
         .pause-text {
-            font-size: 18px;
-            color: #333;
-            margin-bottom: 20px;
-            line-height: 1.4;
+            font-size: 20px; color: #444; margin-bottom: 25px;
+            line-height: 1.5; font-weight: bold;
+        }
+
+        .timer-wrapper {
+            display: none; /* Скрыт в фазе 1 (10 сек) */
+        }
+
+        .timer-label {
+             font-size: 14px; color: #666; margin-bottom: 5px; display: block;
         }
 
         .timer-display {
-            font-size: 48px;
-            font-weight: bold;
-            color: #4A90E2; /* Приятный синий */
-            margin: 10px 0;
+            font-size: 56px; font-weight: 800; color: #FF9F43; /* Оранжевый */
             font-variant-numeric: tabular-nums;
-        }
-
-        .btn-continue {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            outline: none;
-            margin-top: 15px;
-            display: none; /* Скрыта пока таймер не 0 */
-        }
-
-        .btn-continue:hover {
-            background-color: #45a049;
-        }
-
-        .btn-continue:active {
-            transform: scale(0.95);
-        }
-
-        /* Режим отладки (скрыть в продакшене) */
-        #debug-info {
-            position: absolute;
-            bottom: 5px;
-            left: 5px;
-            font-size: 10px;
-            color: rgba(255,255,255,0.5);
-            pointer-events: none;
-            display: none; /* Включите для тестов */
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.1);
         }
     </style>
 </head>
 <body>
 
     <div id="app-container">
-        <div class="pause-card">
-            <div class="pause-text" id="pause-text">Отдохни немного</div>
-            <div class="timer-display" id="timer">10</div>
-            <button class="btn-continue" id="btn-continue">Продолжить</button>
+        <div class="pause-card-wrap">
+            <div class="pause-card">
+                <div class="pause-icon">🧘✨</div>
+                <div class="pause-text" id="pause-text">
+                    Ой! Кажется, нашим глазкам и пальчикам пора сделать маленькую зарядку. Готов?
+                </div>
+                
+                <div class="timer-wrapper" id="timer-block">
+                    <span class="timer-label">Выполняй задание:</span>
+                    <div class="timer-display" id="timer">60</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="debug-info">Clicks: <span id="dbg-clicks">0</span> | Time: <span id="dbg-time">0</span></div>
-
     <script>
         /**
-         * NEURO-STOP LOGIC
+         * КОНФИГУРАЦИЯ И ПАРАМЕТРЫ
          */
-        
-        // 1. ПОЛУЧЕНИЕ НАСТРОЕК (Парсинг URL)
         const params = new URLSearchParams(window.location.search);
-
         const config = {
-            interactionEvery: parseInt(params.get('interactionEvery')) || 5, // Действий до паузы
-            activeMinutes: parseFloat(params.get('activeMinutes')) || 5,     // Минут до паузы
-            pauseSeconds: parseInt(params.get('pauseSeconds')) || 10,        // Длительность паузы
-            idleTimeout: parseInt(params.get('idleTimeout')) || 20,          // Сек до "тишины"
-            text: params.get('text') || "Стоп. Дай мозгу отдохнуть.",        // Текст сообщения
-            mode: params.get('mode') || 'strict'                             // strict или soft
+            interactionEvery: parseInt(params.get('interactionEvery')) || 5,
+            activeMinutes: parseFloat(params.get('activeMinutes')) || 5,
+            idleTimeout: parseInt(params.get('idleTimeout')) || 20,
+            // Текст теперь зашит в HTML, но можно переопределить
+            phrasePhase1: params.get('text') || "Ой! Кажется, нашим глазкам и пальчикам пора сделать маленькую зарядку. Готов?",
+            phrasePhase2: "Отлично! Возвращаемся в игру через:",
+            // НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЛОГИКИ ПЕРЕХОДОВ
+            preSwitchDelay: 10, // Фаза 1: секунд до перехода на нейрослайд
+            neuroTaskDuration: 60, // Фаза 2: секунд на нейрослайде
+            // ID слайдов (задаются в URL: ?neuroSlide=XXXX&returnSlide=YYYY)
+            neuroSlideId: params.get('neuroSlide') || null, 
+            returnSlideId: params.get('returnSlide') || null 
         };
 
-        // Декодируем текст (если передан через URL-encoded)
-        try {
-            config.text = decodeURIComponent(config.text);
-        } catch (e) { console.warn("Text decode error", e); }
-
-        // Элементы DOM
+        // DOM Элементы
         const container = document.getElementById('app-container');
-        const card = document.querySelector('.pause-card');
         const textEl = document.getElementById('pause-text');
+        const timerBlockEl = document.getElementById('timer-block');
         const timerEl = document.getElementById('timer');
-        const btnContinue = document.getElementById('btn-continue');
-        
-        // Элементы отладки
-        const dbgClicks = document.getElementById('dbg-clicks');
-        const dbgTime = document.getElementById('dbg-time');
 
-        // Инициализация текста
-        textEl.textContent = config.text;
-
-        // Состояние системы
+        // Состояние
         let state = {
-            clickCount: 0,
-            activeSeconds: 0,
-            lastActivityTime: Date.now(),
-            isPaused: false,
-            isIdle: false
+            clickCount: 0, activeSeconds: 0, lastActivityTime: Date.now(),
+            isPaused: false, isIdle: false,
+            currentPhase: 'running' // running, phase1_preparing, phase2_task
         };
+        let activeTimerInterval, phaseTimerInterval;
 
-        let activeTimerInterval = null;
-        let pauseCountdownInterval = null;
-
-        // --- ЛОГИКА ТРИГГЕРОВ ---
-
-        // Функция регистрации активности
-        function registerActivity() {
-            if (state.isPaused) return;
-
-            const now = Date.now();
+        // --- ФУНКЦИИ-ЗАГЛУШКИ ДЛЯ GENIALLY API (ВАЖНО!) ---
+        
+        // Функция 1: Переход НА слайд с заданием
+        function executeSlideSwitch(targetSlideId) {
+            if (!targetSlideId) {
+                console.warn("⚠️ Не указан ID нейро-слайда в параметрах URL (neuroSlide=...)");
+                return;
+            }
+            console.log(`%c💡 GENIALLY API: Переход на нейро-слайд ID: ${targetSlideId}`, 'color: chartreuse; background: #333; padding: 4px;');
             
-            // Если вышли из idle (простоя)
-            if (state.isIdle) {
-                state.isIdle = false;
-                // console.log("User returned from IDLE");
-            }
-
-            // Обновляем метку времени последнего действия
-            state.lastActivityTime = now;
-
-            // Увеличиваем счетчик кликов (Триггер 2)
-            if (config.interactionEvery > 0) {
-                state.clickCount++;
-                if (dbgClicks) dbgClicks.textContent = state.clickCount;
-                
-                // Проверка триггера кликов
-                if (state.clickCount >= config.interactionEvery) {
-                    triggerPause('clicks');
-                    return;
-                }
-            }
+            /* TODO: ВСТАВИТЬ СЮДА РЕАЛЬНЫЙ КОД GENIALLY API */
+            // Например: window.parent.postMessage({ type: 'goto', slide: targetSlideId }, '*');
         }
 
-        // Таймер активного времени (Триггер 3)
-        function startActiveTimer() {
-            if (activeTimerInterval) clearInterval(activeTimerInterval);
+        // Функция 2: Возврат НА исходный слайд
+        function executeReturnSwitch(targetSlideId) {
+             if (!targetSlideId) {
+                 console.warn("⚠️ Не указан ID слайда возврата в параметрах URL (returnSlide=...)");
+                 // Если ID возврата не задан, просто скрываем оверлей
+                 endPauseSequence();
+                 return;
+            }
+            console.log(`%c💡 GENIALLY API: Возврат на слайд игры ID: ${targetSlideId}`, 'color: cyan; background: #333; padding: 4px;');
+
+            /* TODO: ВСТАВИТЬ СЮДА РЕАЛЬНЫЙ КОД GENIALLY API */
             
-            activeTimerInterval = setInterval(() => {
-                if (state.isPaused) return;
-
-                const now = Date.now();
-                const secondsSinceLastAction = (now - state.lastActivityTime) / 1000;
-
-                // Проверка на Idle (простой)
-                if (secondsSinceLastAction > config.idleTimeout) {
-                    state.isIdle = true;
-                    // В режиме idle таймер активности не тикает
-                    return; 
-                }
-
-                // Если не idle, копим активное время
-                if (config.activeMinutes > 0) {
-                    state.activeSeconds++;
-                    if (dbgTime) dbgTime.textContent = state.activeSeconds;
-
-                    // Проверка триггера времени (переводим минуты в секунды)
-                    if (state.activeSeconds >= (config.activeMinutes * 60)) {
-                        triggerPause('time');
-                    }
-                }
-
-            }, 1000); // Проверяем каждую секунду
+            // После команды возврата завершаем паузу
+            endPauseSequence();
         }
 
-        // --- ЛОГИКА ПАУЗЫ ---
+
+        // --- НОВАЯ ЛОГИКА ПАУЗЫ (2 ФАЗЫ) ---
 
         function triggerPause(reason) {
-            console.log(`Pausing due to: ${reason}`);
+            if(state.isPaused) return;
+            console.log(`Sequence started: ${reason}`);
             state.isPaused = true;
             
-            // Сброс счетчиков сразу (или после паузы - по ТЗ "после завершения", но для надежности можно тут)
-            state.clickCount = 0;
-            state.activeSeconds = 0;
-            if(dbgClicks) dbgClicks.textContent = 0;
-            if(dbgTime) dbgTime.textContent = 0;
+            // Сброс триггеров
+            state.clickCount = 0; state.activeSeconds = 0;
 
-            // UI: Показываем оверлей
-            container.classList.add('paused');
-            btnContinue.style.display = 'none';
+            // --- ФАЗА 1: Подготовка (10 секунд) ---
+            state.currentPhase = 'phase1_preparing';
             
-            // Запуск обратного отсчета
-            let timeLeft = config.pauseSeconds;
+            // Визуал ФАЗЫ 1
+            textEl.textContent = config.phrasePhase1;
+            timerBlockEl.style.display = 'none'; // Таймер 60с пока не показываем
+            container.classList.add('paused');
+
+            console.log(`Phase 1: Waiting ${config.preSwitchDelay}s before switch...`);
+
+            // Запускаем таймер ожидания перехода (10 сек)
+            setTimeout(() => {
+                startPhase2();
+            }, config.preSwitchDelay * 1000);
+        }
+
+        function startPhase2() {
+            // --- ФАЗА 2: Переход и выполнение задания (60 секунд) ---
+            state.currentPhase = 'phase2_task';
+            console.log("Phase 2: Switching slide & starting 60s timer.");
+
+            // 1. Выполняем переход (если задан ID)
+            executeSlideSwitch(config.neuroSlideId);
+
+            // 2. Меняем визуал карточки (на случай, если она все еще видна на новом слайде)
+            textEl.textContent = config.phrasePhase2;
+            timerBlockEl.style.display = 'block'; // Показываем таймер
+            
+            let timeLeft = config.neuroTaskDuration;
             timerEl.textContent = timeLeft;
 
-            if (pauseCountdownInterval) clearInterval(pauseCountdownInterval);
-            
-            pauseCountdownInterval = setInterval(() => {
+            if (phaseTimerInterval) clearInterval(phaseTimerInterval);
+
+            // Запускаем обратный отсчет 60 сек
+            phaseTimerInterval = setInterval(() => {
                 timeLeft--;
                 timerEl.textContent = timeLeft;
+                console.log("Task timer: " + timeLeft);
 
                 if (timeLeft <= 0) {
-                    clearInterval(pauseCountdownInterval);
-                    allowContinue();
+                    clearInterval(phaseTimerInterval);
+                    // Время вышло - возвращаемся
+                    executeReturnSwitch(config.returnSlideId);
                 }
             }, 1000);
         }
 
-        function allowContinue() {
-            btnContinue.style.display = 'inline-block';
-            
-            // Если режим НЕ строгий, можно авто-закрыть (опционально), 
-            // но в ТЗ сказано "кнопка появляется".
-        }
-
-        btnContinue.addEventListener('click', () => {
-            endPause();
-        });
-
-        function endPause() {
+        function endPauseSequence() {
+            console.log("Sequence finished. Resuming game.");
             state.isPaused = false;
-            state.lastActivityTime = Date.now(); // Сброс таймера простоя
+            state.currentPhase = 'running';
+            state.lastActivityTime = Date.now();
             container.classList.remove('paused');
-            
-            // Сброс счетчиков (дублируем для гарантии)
-            state.clickCount = 0;
-            state.activeSeconds = 0;
         }
 
-        // --- ОБРАБОТЧИКИ СОБЫТИЙ (ГЛАВНАЯ ПРОБЛЕМА IFRAME) ---
 
-        /* ПРОБЛЕМА: iframe с pointer-events: none не слышит клики.
-           РЕШЕНИЕ ДЛЯ GENIALLY:
-           Так как мы не можем получить доступ к window.parent (CORS), 
-           мы используем гибридный подход.
-           
-           Если Genially позволяет, мы вешаем слушатель на window (если игра внутри iframe)
-           или надеемся, что курсор пользователя пройдет через iframe, 
-           но клик будет зарегистрирован родительским окном.
-           
-           ДЛЯ MVP (ВАЖНО):
-           Мы будем слушать mousemove / click внутри этого документа.
-           НО! Чтобы это работало, пользователь должен кликать именно по нашему iframe.
-           Поскольку iframe прозрачный и лежит ПОВЕРХ, нам нужно, чтобы клик 
-           сначала засчитался у нас, а потом провалился вниз.
-           В вебе это невозможно сделать просто (либо мы ловим, либо пропускаем).
-           
-           КОМПРОМИСС:
-           Мы слушаем события `window.top` (если это один домен) или используем
-           `window.addEventListener('blur')` (хак: фокус ушел в iframe игры - считаем за клик).
-           
-           Для текущей реализации мы предполагаем, что этот скрипт встроен 
-           через функционал "Insert HTML" и находится в том же контексте, 
-           ЛИБО мы просто вешаем обработчик на window и надеемся на всплытие.
-           
-           Для надежности (если iframe не перекрывает управление):
-           Мы используем слушатель на window. 
-        */
+        // --- СТАНДАРТНАЯ ЛОГИКА ТРИГГЕРОВ (Из прошлой версии) ---
 
-        // Попытка подключиться к родителю (работает только если same-origin)
+        function registerActivity() {
+            if (state.isPaused) return;
+            state.isIdle = false;
+            state.lastActivityTime = Date.now();
+
+            if (config.interactionEvery > 0) {
+                state.clickCount++;
+                if (state.clickCount >= config.interactionEvery) triggerPause('clicks');
+            }
+        }
+
+        function startActiveTimer() {
+            if (activeTimerInterval) clearInterval(activeTimerInterval);
+            activeTimerInterval = setInterval(() => {
+                if (state.isPaused || state.isIdle) return;
+                
+                if ((Date.now() - state.lastActivityTime) / 1000 > config.idleTimeout) {
+                    state.isIdle = true; return;
+                }
+
+                if (config.activeMinutes > 0) {
+                    state.activeSeconds++;
+                    if (state.activeSeconds >= (config.activeMinutes * 60)) triggerPause('time');
+                }
+            }, 1000);
+        }
+
+        // Обработчики событий (Hybrid approach)
         try {
-            window.parent.document.addEventListener('click', () => {
-                registerActivity();
-            }, { capture: true }); // capture true чтобы поймать раньше всех
-            console.log("Attached to parent window success");
+            window.parent.document.addEventListener('click', registerActivity, { capture: true });
         } catch (e) {
-            console.log("CORS block: Cannot attach to parent. Using local fallback.");
-            // Fallback: слушаем в текущем окне (если игра рендерится тут же)
             document.addEventListener('click', registerActivity);
             document.addEventListener('touchstart', registerActivity);
-            document.addEventListener('keydown', registerActivity); // Клавиатура тоже активность
+            document.addEventListener('keydown', registerActivity);
         }
-
-        // Запуск
+        
         startActiveTimer();
 
     </script>
