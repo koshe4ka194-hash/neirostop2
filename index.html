@@ -3,287 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop 3D Extension</title>
+    <title>Neuro-Stop 3D Hologram</title>
     <style>
-        /* Общие стили */
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background: transparent;
-            font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', 'Segoe UI', sans-serif; /* Более детский шрифт */
+            font-family: 'Segoe UI', Tahoma, sans-serif;
         }
 
+        /* Контейнер: абсолютно прозрачный, пока нет паузы */
         #app-container {
             width: 100%; height: 100%;
-            pointer-events: none;
+            pointer-events: none; 
             display: flex; justify-content: center; align-items: center;
-            transition: background-color 0.5s ease;
-            perspective: 1000px; /* Для 3D эффекта */
+            perspective: 1200px; /* Глубина 3D */
+            transition: background 0.5s;
         }
 
+        /* Защитный слой во время паузы (невидимый, но блокирует клики в игру) */
         #app-container.paused {
-            pointer-events: all;
-            background-color: rgba(40, 30, 60, 0.4); /* Мягкое фиолетовое затемнение */
-            backdrop-filter: blur(3px);
+            pointer-events: all; 
+            background: rgba(0,0,0,0.05); /* Едва заметное изменение тона */
         }
 
-        /* --- НОВЫЙ 3D ВИЗУАЛ КАРТОЧКИ --- */
-        .pause-card-wrap {
-            opacity: 0;
-            transform: rotateX(20deg) translateZ(-100px); /* Начальная позиция для анимации */
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Эффект пружины при появлении */
-            transform-style: preserve-3d;
+        /* Объемная 3D карточка */
+        .card-3d {
             display: none;
+            opacity: 0;
+            width: 400px;
+            max-width: 85%;
+            background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); /* Спокойный мятно-белый */
+            border-radius: 40px;
+            padding: 35px;
+            text-align: center;
+            position: relative;
+            
+            /* Эффект свечения и объема */
+            box-shadow: 
+                0 30px 60px rgba(0,0,0,0.12), 
+                0 0 30px rgba(178, 235, 242, 0.6), /* Внутреннее свечение */
+                inset 0 0 15px rgba(255,255,255,1);
+            
+            border: 1px solid rgba(255,255,255,0.8);
+            transform: rotateX(10deg) rotateY(-5deg) translateZ(50px);
+            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
-        #app-container.paused .pause-card-wrap {
+        #app-container.paused .card-3d {
             display: block;
             opacity: 1;
-            transform: rotateX(0deg) translateZ(0); /* Конечная позиция */
+            transform: rotateX(0deg) rotateY(0deg) translateZ(100px);
         }
 
-        .pause-card {
-            background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
-            padding: 40px 30px;
-            border-radius: 30px;
-            text-align: center;
-            max-width: 85%; width: 380px;
-            /* 3D объем и свечение */
-            box-shadow: 
-                0 20px 40px rgba(0,0,0,0.15), /* Глубокая тень */
-                0 0 20px rgba(100, 180, 255, 0.4), /* Внешнее свечение */
-                inset 0 0 20px rgba(255,255,255,0.8); /* Внутренний блик */
-            border: 3px solid rgba(255, 255, 255, 0.7);
-            position: relative;
-            overflow: hidden;
+        /* Иконка и заголовок */
+        .icon { font-size: 45px; margin-bottom: 10px; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.1)); }
+        
+        .title {
+            color: #006064; font-size: 22px; font-weight: 700;
+            margin-bottom: 15px;
         }
 
-        /* Анимация блика света */
-        .pause-card::after {
-            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-            background: linear-gradient(to bottom right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
-            transform: rotate(45deg);
-            animation: shineEffect 3s infinite ease-in-out;
-            pointer-events: none;
-        }
-        @keyframes shineEffect {
-            0% { transform: translateX(-100%) rotate(45deg); }
-            100% { transform: translateX(100%) rotate(45deg); }
-        }
-
-        .pause-icon {
-            font-size: 50px; margin-bottom: 15px;
-            text-shadow: 0 5px 10px rgba(0,0,0,0.1);
+        /* Блок задания */
+        .task-box {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px dashed #4dd0e1;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #37474f;
+            line-height: 1.4;
         }
 
-        .pause-text {
-            font-size: 20px; color: #444; margin-bottom: 25px;
-            line-height: 1.5; font-weight: bold;
+        /* Таймер */
+        .timer-circle {
+            width: 70px; height: 70px;
+            border-radius: 50%;
+            background: #4dd0e1;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto;
+            color: white; font-size: 28px; font-weight: bold;
+            box-shadow: 0 5px 15px rgba(77, 208, 225, 0.4);
         }
 
-        .timer-wrapper {
-            display: none; /* Скрыт в фазе 1 (10 сек) */
+        /* Анимация парения */
+        @keyframes float {
+            0% { transform: translateY(0px) rotateX(0deg); }
+            50% { transform: translateY(-15px) rotateX(2deg); }
+            100% { transform: translateY(0px) rotateX(0deg); }
         }
+        .floating { animation: float 4s infinite ease-in-out; }
 
-        .timer-label {
-             font-size: 14px; color: #666; margin-bottom: 5px; display: block;
-        }
-
-        .timer-display {
-            font-size: 56px; font-weight: 800; color: #FF9F43; /* Оранжевый */
-            font-variant-numeric: tabular-nums;
-            text-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        }
     </style>
 </head>
 <body>
 
     <div id="app-container">
-        <div class="pause-card-wrap">
-            <div class="pause-card">
-                <div class="pause-icon">🧘✨</div>
-                <div class="pause-text" id="pause-text">
-                    Ой! Кажется, нашим глазкам и пальчикам пора сделать маленькую зарядку. Готов?
-                </div>
-                
-                <div class="timer-wrapper" id="timer-block">
-                    <span class="timer-label">Выполняй задание:</span>
-                    <div class="timer-display" id="timer">60</div>
-                </div>
+        <div class="card-3d floating" id="card">
+            <div class="icon">🌿</div>
+            <div class="title" id="status-text">Время отдыха!</div>
+            
+            <div class="task-box" id="task-content">
+                Загружаю задание...
             </div>
+
+            <div class="timer-circle" id="timer-val">10</div>
         </div>
     </div>
 
     <script>
-        /**
-         * КОНФИГУРАЦИЯ И ПАРАМЕТРЫ
-         */
+        // --- НАСТРОЙКИ ---
         const params = new URLSearchParams(window.location.search);
-        const config = {
-            interactionEvery: parseInt(params.get('interactionEvery')) || 5,
-            activeMinutes: parseFloat(params.get('activeMinutes')) || 5,
-            idleTimeout: parseInt(params.get('idleTimeout')) || 20,
-            // Текст теперь зашит в HTML, но можно переопределить
-            phrasePhase1: params.get('text') || "Ой! Кажется, нашим глазкам и пальчикам пора сделать маленькую зарядку. Готов?",
-            phrasePhase2: "Отлично! Возвращаемся в игру через:",
-            // НОВЫЕ ПАРАМЕТРЫ ДЛЯ ЛОГИКИ ПЕРЕХОДОВ
-            preSwitchDelay: 10, // Фаза 1: секунд до перехода на нейрослайд
-            neuroTaskDuration: 60, // Фаза 2: секунд на нейрослайде
-            // ID слайдов (задаются в URL: ?neuroSlide=XXXX&returnSlide=YYYY)
-            neuroSlideId: params.get('neuroSlide') || null, 
-            returnSlideId: params.get('returnSlide') || null 
-        };
+        const GAME_TIME_LIMIT = (parseFloat(params.get('activeMinutes')) || 0.2) * 60; // Перевод в сек.
+        const PAUSE_TIME = 60; // Длительность выполнения задания
 
-        // DOM Элементы
+        // СПИСОК НЕЙРО-ЗАДАНИЙ
+        const neuroTasks = [
+            "Посмотри на кончик носа, а затем вдаль. Повтори 5 раз! 👀",
+            "Нарисуй в воздухе обеими руками одновременно круг! ⭕",
+            "Дотронься правой рукой до левого уха, а левой до носа. Поменяй! 🖐️",
+            "Представь, что ты задуваешь 5 свечей на большом торте! 🎂",
+            "Потри ладошки друг об друга, пока они не станут теплыми! 🔥",
+            "Напиши в воздухе своё имя указательным пальцем! ✍️"
+        ];
+
         const container = document.getElementById('app-container');
-        const textEl = document.getElementById('pause-text');
-        const timerBlockEl = document.getElementById('timer-block');
-        const timerEl = document.getElementById('timer');
+        const card = document.getElementById('card');
+        const taskContent = document.getElementById('task-content');
+        const timerVal = document.getElementById('timer-val');
+        const statusText = document.getElementById('status-text');
 
-        // Состояние
-        let state = {
-            clickCount: 0, activeSeconds: 0, lastActivityTime: Date.now(),
-            isPaused: false, isIdle: false,
-            currentPhase: 'running' // running, phase1_preparing, phase2_task
-        };
-        let activeTimerInterval, phaseTimerInterval;
+        let playSeconds = 0;
+        let isPaused = false;
 
-        // --- ФУНКЦИИ-ЗАГЛУШКИ ДЛЯ GENIALLY API (ВАЖНО!) ---
-        
-        // Функция 1: Переход НА слайд с заданием
-        function executeSlideSwitch(targetSlideId) {
-            if (!targetSlideId) {
-                console.warn("⚠️ Не указан ID нейро-слайда в параметрах URL (neuroSlide=...)");
-                return;
+        // Основной цикл игры
+        setInterval(() => {
+            if (isPaused) return;
+
+            playSeconds++;
+            if (playSeconds >= GAME_TIME_LIMIT) {
+                startNeuroPause();
             }
-            console.log(`%c💡 GENIALLY API: Переход на нейро-слайд ID: ${targetSlideId}`, 'color: chartreuse; background: #333; padding: 4px;');
+        }, 1000);
+
+        function startNeuroPause() {
+            isPaused = true;
+            playSeconds = 0;
+
+            // Выбираем случайное задание
+            const randomTask = neuroTasks[Math.floor(Math.random() * neuroTasks.length)];
+            taskContent.innerHTML = randomTask;
+            statusText.innerText = "Полезная пауза";
             
-            /* TODO: ВСТАВИТЬ СЮДА РЕАЛЬНЫЙ КОД GENIALLY API */
-            // Например: window.parent.postMessage({ type: 'goto', slide: targetSlideId }, '*');
-        }
-
-        // Функция 2: Возврат НА исходный слайд
-        function executeReturnSwitch(targetSlideId) {
-             if (!targetSlideId) {
-                 console.warn("⚠️ Не указан ID слайда возврата в параметрах URL (returnSlide=...)");
-                 // Если ID возврата не задан, просто скрываем оверлей
-                 endPauseSequence();
-                 return;
-            }
-            console.log(`%c💡 GENIALLY API: Возврат на слайд игры ID: ${targetSlideId}`, 'color: cyan; background: #333; padding: 4px;');
-
-            /* TODO: ВСТАВИТЬ СЮДА РЕАЛЬНЫЙ КОД GENIALLY API */
-            
-            // После команды возврата завершаем паузу
-            endPauseSequence();
-        }
-
-
-        // --- НОВАЯ ЛОГИКА ПАУЗЫ (2 ФАЗЫ) ---
-
-        function triggerPause(reason) {
-            if(state.isPaused) return;
-            console.log(`Sequence started: ${reason}`);
-            state.isPaused = true;
-            
-            // Сброс триггеров
-            state.clickCount = 0; state.activeSeconds = 0;
-
-            // --- ФАЗА 1: Подготовка (10 секунд) ---
-            state.currentPhase = 'phase1_preparing';
-            
-            // Визуал ФАЗЫ 1
-            textEl.textContent = config.phrasePhase1;
-            timerBlockEl.style.display = 'none'; // Таймер 60с пока не показываем
+            // Показываем карточку
             container.classList.add('paused');
-
-            console.log(`Phase 1: Waiting ${config.preSwitchDelay}s before switch...`);
-
-            // Запускаем таймер ожидания перехода (10 сек)
-            setTimeout(() => {
-                startPhase2();
-            }, config.preSwitchDelay * 1000);
-        }
-
-        function startPhase2() {
-            // --- ФАЗА 2: Переход и выполнение задания (60 секунд) ---
-            state.currentPhase = 'phase2_task';
-            console.log("Phase 2: Switching slide & starting 60s timer.");
-
-            // 1. Выполняем переход (если задан ID)
-            executeSlideSwitch(config.neuroSlideId);
-
-            // 2. Меняем визуал карточки (на случай, если она все еще видна на новом слайде)
-            textEl.textContent = config.phrasePhase2;
-            timerBlockEl.style.display = 'block'; // Показываем таймер
             
-            let timeLeft = config.neuroTaskDuration;
-            timerEl.textContent = timeLeft;
+            let timeLeft = PAUSE_TIME;
+            timerVal.innerText = timeLeft;
 
-            if (phaseTimerInterval) clearInterval(phaseTimerInterval);
-
-            // Запускаем обратный отсчет 60 сек
-            phaseTimerInterval = setInterval(() => {
+            const countdown = setInterval(() => {
                 timeLeft--;
-                timerEl.textContent = timeLeft;
-                console.log("Task timer: " + timeLeft);
+                timerVal.innerText = timeLeft;
 
                 if (timeLeft <= 0) {
-                    clearInterval(phaseTimerInterval);
-                    // Время вышло - возвращаемся
-                    executeReturnSwitch(config.returnSlideId);
+                    clearInterval(countdown);
+                    endNeuroPause();
                 }
             }, 1000);
         }
 
-        function endPauseSequence() {
-            console.log("Sequence finished. Resuming game.");
-            state.isPaused = false;
-            state.currentPhase = 'running';
-            state.lastActivityTime = Date.now();
+        function endNeuroPause() {
             container.classList.remove('paused');
+            isPaused = false;
         }
-
-
-        // --- СТАНДАРТНАЯ ЛОГИКА ТРИГГЕРОВ (Из прошлой версии) ---
-
-        function registerActivity() {
-            if (state.isPaused) return;
-            state.isIdle = false;
-            state.lastActivityTime = Date.now();
-
-            if (config.interactionEvery > 0) {
-                state.clickCount++;
-                if (state.clickCount >= config.interactionEvery) triggerPause('clicks');
-            }
-        }
-
-        function startActiveTimer() {
-            if (activeTimerInterval) clearInterval(activeTimerInterval);
-            activeTimerInterval = setInterval(() => {
-                if (state.isPaused || state.isIdle) return;
-                
-                if ((Date.now() - state.lastActivityTime) / 1000 > config.idleTimeout) {
-                    state.isIdle = true; return;
-                }
-
-                if (config.activeMinutes > 0) {
-                    state.activeSeconds++;
-                    if (state.activeSeconds >= (config.activeMinutes * 60)) triggerPause('time');
-                }
-            }, 1000);
-        }
-
-        // Обработчики событий (Hybrid approach)
-        try {
-            window.parent.document.addEventListener('click', registerActivity, { capture: true });
-        } catch (e) {
-            document.addEventListener('click', registerActivity);
-            document.addEventListener('touchstart', registerActivity);
-            document.addEventListener('keydown', registerActivity);
-        }
-        
-        startActiveTimer();
-
     </script>
 </body>
 </html>
