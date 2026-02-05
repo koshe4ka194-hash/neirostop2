@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuro-Stop Extension</title>
+    <style>
+        /* Общие стили сброса */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* ВАЖНО: По умолчанию iframe должен пропускать клики сквозь себя,
+           чтобы ребенок мог играть в игру Genially под ним.
+           Мы включаем pointer-events только когда срабатывает ПАУЗА.
+        */
+        #app-container {
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Пропускаем клики */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Состояние ПАУЗЫ */
+        #app-container.paused {
+            pointer-events: all; /* Блокируем клики, чтобы они не ушли в игру */
+            background-color: rgba(0, 0, 0, 0.6); /* Затемнение 60% */
+            backdrop-filter: blur(2px); /* Легкое размытие (опционально) */
+        }
+
+        /* Карточка паузы */
+        .pause-card {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 80%;
+            width: 320px;
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.3s ease-out;
+            display: none; /* Скрыта по умолчанию */
+        }
+
+        /* Показ карточки */
+        #app-container.paused .pause-card {
+            display: block;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .pause-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .timer-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4A90E2; /* Приятный синий */
+            margin: 10px 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .btn-continue {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            outline: none;
+            margin-top: 15px;
+            display: none; /* Скрыта пока таймер не 0 */
+        }
+
+        .btn-continue:hover {
+            background-color: #45a049;
+        }
+
+        .btn-continue:active {
+            transform: scale(0.95);
+        }
+
+        /* Режим отладки (скрыть в продакшене) */
+        #debug-info {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            pointer-events: none;
+            display: none; /* Включите для тестов */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div class="pause-card">
+            <div class="pause-text" id="pause-text">Отдохни немного</div>
+            <div class="timer-display" id="timer">10</div>
+            <button class="btn-continue" id="btn-continue">Продолжить</button>
+        </div>
+    </div>
+
+    <div id="debug-info">Clicks: <span id="dbg-clicks">0</span> | Time: <span id="dbg-time">0</span></div>
+
+    <script>
+        /**
+         * NEURO-STOP LOGIC
+         */
+        
+        // 1. ПОЛУЧЕНИЕ НАСТРОЕК (Парсинг URL)
+        const params = new URLSearchParams(window.location.search);
+
+        const config = {
+            interactionEvery: parseInt(params.get('interactionEvery')) || 5, // Действий до паузы
+            activeMinutes: parseFloat(params.get('activeMinutes')) || 5,     // Минут до паузы
+            pauseSeconds: parseInt(params.get('pauseSeconds')) || 10,        // Длительность паузы
+            idleTimeout: parseInt(params.get('idleTimeout')) || 20,          // Сек до "тишины"
+            text: params.get('text') || "Стоп. Дай мозгу отдохнуть.",        // Текст сообщения
+            mode: params.get('mode') || 'strict'                             // strict или soft
+        };
+
+        // Декодируем текст (если передан через URL-encoded)
+        try {
+            config.text = decodeURIComponent(config.text);
+        } catch (e) { console.warn("Text decode error", e); }
+
+        // Элементы DOM
+        const container = document.getElementById('app-container');
+        const card = document.querySelector('.pause-card');
+        const textEl = document.getElementById('pause-text');
+        const timerEl = document.getElementById('timer');
+        const btnContinue = document.getElementById('btn-continue');
+        
+        // Элементы отладки
+        const dbgClicks = document.getElementById('dbg-clicks');
+        const dbgTime = document.getElementById('dbg-time');
+
+        // Инициализация текста
+        textEl.textContent = config.text;
+
+        // Состояние системы
+        let state = {
+            clickCount: 0,
+            activeSeconds: 0,
+            lastActivityTime: Date.now(),
+            isPaused: false,
+            isIdle: false
+        };
+
+        let activeTimerInterval = null;
+        let pauseCountdownInterval = null;
+
+        // --- ЛОГИКА ТРИГГЕРОВ ---
+
+        // Функция регистрации активности
+        function registerActivity() {
+            if (state.isPaused) return;
+
+            const now = Date.now();
+            
+            // Если вышли из idle (простоя)
+            if (state.isIdle) {
+                state.isIdle = false;
+                // console.log("User returned from IDLE");
+            }
+
+            // Обновляем метку времени последнего действия
+            state.lastActivityTime = now;
+
+            // Увеличиваем счетчик кликов (Триггер 2)
+            if (config.interactionEvery > 0) {
+                state.clickCount++;
+                if (dbgClicks) dbgClicks.textContent = state.clickCount;
+                
+                // Проверка триггера кликов
+                if (state.clickCount >= config.interactionEvery) {
+                    triggerPause('clicks');
+                    return;
+                }
+            }
+        }
+
+        // Таймер активного времени (Триггер 3)
+        function startActiveTimer() {
+            if (activeTimerInterval) clearInterval(activeTimerInterval);
+            
+            activeTimerInterval = setInterval(() => {
+                if (state.isPaused) return;
+
+                const now = Date.now();
+                const secondsSinceLastAction = (now - state.lastActivityTime) / 1000;
+
+                // Проверка на Idle (простой)
+                if (secondsSinceLastAction > config.idleTimeout) {
+                    state.isIdle = true;
+                    // В режиме idle таймер активности не тикает
+                    return; 
+                }
+
+                // Если не idle, копим активное время
+                if (config.activeMinutes > 0) {
+                    state.activeSeconds++;
+                    if (dbgTime) dbgTime.textContent = state.activeSeconds;
+
+                    // Проверка триггера времени (переводим минуты в секунды)
+                    if (state.activeSeconds >= (config.activeMinutes * 60)) {
+                        triggerPause('time');
+                    }
+                }
+
+            }, 1000); // Проверяем каждую секунду
+        }
+
+        // --- ЛОГИКА ПАУЗЫ ---
+
+        function triggerPause(reason) {
+            console.log(`Pausing due to: ${reason}`);
+            state.isPaused = true;
+            
+            // Сброс счетчиков сразу (или после паузы - по ТЗ "после завершения", но для надежности можно тут)
+            state.clickCount = 0;
+            state.activeSeconds = 0;
+            if(dbgClicks) dbgClicks.textContent = 0;
+            if(dbgTime) dbgTime.textContent = 0;
+
+            // UI: Показываем оверлей
+            container.classList.add('paused');
+            btnContinue.style.display = 'none';
+            
+            // Запуск обратного отсчета
+            let timeLeft = config.pauseSeconds;
+            timerEl.textContent = timeLeft;
+
+            if (pauseCountdownInterval) clearInterval(pauseCountdownInterval);
+            
+            pauseCountdownInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+
+                if (timeLeft <= 0) {
+                    clearInterval(pauseCountdownInterval);
+                    allowContinue();
+                }
+            }, 1000);
+        }
+
+        function allowContinue() {
+            btnContinue.style.display = 'inline-block';
+            
+            // Если режим НЕ строгий, можно авто-закрыть (опционально), 
+            // но в ТЗ сказано "кнопка появляется".
+        }
+
+        btnContinue.addEventListener('click', () => {
+            endPause();
+        });
+
+        function endPause() {
+            state.isPaused = false;
+            state.lastActivityTime = Date.now(); // Сброс таймера простоя
+            container.classList.remove('paused');
+            
+            // Сброс счетчиков (дублируем для гарантии)
+            state.clickCount = 0;
+            state.activeSeconds = 0;
+        }
+
+        // --- ОБРАБОТЧИКИ СОБЫТИЙ (ГЛАВНАЯ ПРОБЛЕМА IFRAME) ---
+
+        /* ПРОБЛЕМА: iframe с pointer-events: none не слышит клики.
+           РЕШЕНИЕ ДЛЯ GENIALLY:
+           Так как мы не можем получить доступ к window.parent (CORS), 
+           мы используем гибридный подход.
+           
+           Если Genially позволяет, мы вешаем слушатель на window (если игра внутри iframe)
+           или надеемся, что курсор пользователя пройдет через iframe, 
+           но клик будет зарегистрирован родительским окном.
+           
+           ДЛЯ MVP (ВАЖНО):
+           Мы будем слушать mousemove / click внутри этого документа.
+           НО! Чтобы это работало, пользователь должен кликать именно по нашему iframe.
+           Поскольку iframe прозрачный и лежит ПОВЕРХ, нам нужно, чтобы клик 
+           сначала засчитался у нас, а потом провалился вниз.
+           В вебе это невозможно сделать просто (либо мы ловим, либо пропускаем).
+           
+           КОМПРОМИСС:
+           Мы слушаем события `window.top` (если это один домен) или используем
+           `window.addEventListener('blur')` (хак: фокус ушел в iframe игры - считаем за клик).
+           
+           Для текущей реализации мы предполагаем, что этот скрипт встроен 
+           через функционал "Insert HTML" и находится в том же контексте, 
+           ЛИБО мы просто вешаем обработчик на window и надеемся на всплытие.
+           
+           Для надежности (если iframe не перекрывает управление):
+           Мы используем слушатель на window. 
+        */
+
+        // Попытка подключиться к родителю (работает только если same-origin)
+        try {
+            window.parent.document.addEventListener('click', () => {
+                registerActivity();
+            }, { capture: true }); // capture true чтобы поймать раньше всех
+            console.log("Attached to parent window success");
+        } catch (e) {
+            console.log("CORS block: Cannot attach to parent. Using local fallback.");
+            // Fallback: слушаем в текущем окне (если игра рендерится тут же)
+            document.addEventListener('click', registerActivity);
+            document.addEventListener('touchstart', registerActivity);
+            document.addEventListener('keydown', registerActivity); // Клавиатура тоже активность
+        }
+
+        // Запуск
+        startActiveTimer();
+
+    </script>
+</body>
+</html>
