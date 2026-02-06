@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Final Fixed</title>
+    <title>Neuro-Stop Progress Save</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -19,7 +19,7 @@
             width: 0%; height: 100%;
             background: linear-gradient(90deg, #2dd4bf, #00acc1);
             box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
-            transition: width 1s linear; /* Плавное движение полоски */
+            transition: width 0.5s linear;
         }
 
         #app-container {
@@ -32,7 +32,6 @@
             transition: background 0.5s ease, backdrop-filter 0.5s ease;
         }
 
-        /* Состояние активации паузы */
         #app-container.active {
             pointer-events: all;
             background: rgba(15, 23, 42, 0.85);
@@ -86,28 +85,33 @@
         </div>
     </div>
 
-    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-
     <script>
         const WORK_TIME = 15; 
         const PAUSE_TIME = 30;
+        const STORAGE_KEY = "neuro_timer_seconds";
 
         const progressBar = document.getElementById('progress-bar');
         const container = document.getElementById('app-container');
         const timerVal = document.getElementById('timer-val');
         const btnReady = document.getElementById('btn-ready');
-        const sound = document.getElementById('notif-sound');
 
-        let seconds = 0;
+        // 1. Загружаем сохраненный прогресс или начинаем с 0
+        let seconds = parseInt(localStorage.getItem(STORAGE_KEY)) || 0;
+
+        function updateUI() {
+            let progressPercent = (seconds / WORK_TIME * 100);
+            progressBar.style.width = Math.min(progressPercent, 100) + '%';
+        }
 
         function startWork() {
+            updateUI(); // Сразу ставим полоску на нужное место при загрузке
+            
             const timer = setInterval(() => {
-                seconds++;
-                // Обновляем прогресс-бар
-                let progressPercent = (seconds / WORK_TIME * 100);
-                progressBar.style.width = progressPercent + '%';
-                
-                if (seconds >= WORK_TIME) {
+                if (seconds < WORK_TIME) {
+                    seconds++;
+                    localStorage.setItem(STORAGE_KEY, seconds); // Сохраняем каждую секунду
+                    updateUI();
+                } else {
                     clearInterval(timer);
                     triggerPause();
                 }
@@ -115,14 +119,8 @@
         }
 
         function triggerPause() {
-            // Сначала включаем визуальную часть
             container.classList.add('active');
-            
-            // И В ЭТОТ ЖЕ МОМЕНТ запускаем звук
-            sound.currentTime = 0; // Сброс звука на начало
-            sound.play().catch(e => console.log("Браузер заблокировал автоплей. Нужен клик пользователя."));
 
-            // Запускаем обратный отсчет паузы
             let pLeft = PAUSE_TIME;
             const pInterval = setInterval(() => {
                 pLeft--;
@@ -138,11 +136,12 @@
         }
 
         btnReady.onclick = () => {
-            // Полная перезагрузка для чистого нового цикла
+            // При нажатии на кнопку обнуляем прогресс в памяти и перезагружаем
+            localStorage.setItem(STORAGE_KEY, 0);
             location.reload();
         };
 
-        // Запуск основного цикла
+        // Запуск
         startWork();
     </script>
 </body>
