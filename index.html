@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Final</title>
+    <title>Neuro-Stop Final Fixed</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -11,7 +11,6 @@
             font-family: 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Полоска прогресса */
         #progress-wrapper {
             position: absolute; top: 0; left: 0; width: 100%; height: 8px;
             background: rgba(255, 255, 255, 0.1); z-index: 1001;
@@ -20,40 +19,41 @@
             width: 0%; height: 100%;
             background: linear-gradient(90deg, #2dd4bf, #00acc1);
             box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
-            transition: width 0.3s linear;
+            transition: width 1s linear; /* Плавное движение полоски */
         }
 
-        /* Контейнер-оверлей (по умолчанию прозрачный и "прозрачный" для кликов) */
         #app-container {
             width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
             perspective: 1500px;
             pointer-events: none; 
-            transition: background 0.6s ease, backdrop-filter 0.6s ease;
-            background: rgba(0, 0, 0, 0);
+            background: rgba(15, 23, 42, 0); 
+            backdrop-filter: blur(0px);
+            transition: background 0.5s ease, backdrop-filter 0.5s ease;
         }
 
-        /* Когда появилась пауза — включаем фон и размытие */
+        /* Состояние активации паузы */
         #app-container.active {
             pointer-events: all;
-            background: rgba(15, 23, 42, 0.8); /* То самое затемнение */
-            backdrop-filter: blur(8px); /* Мутный фон */
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
         }
 
         .card-3d {
-            display: none; width: 450px; max-width: 85%;
+            display: none; opacity: 0;
+            width: 450px; max-width: 85%;
             background: #ffffff; border-radius: 40px; padding: 40px;
             text-align: center;
             box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-            transform: translateY(40px) rotateX(10deg);
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(30px);
+            transition: all 0.5s ease;
         }
 
         #app-container.active .card-3d {
-            display: block; transform: translateY(0) rotateX(0deg);
+            display: block; opacity: 1; transform: translateY(0);
         }
 
-        .icon { font-size: 70px; margin-bottom: 15px; }
+        .icon { font-size: 70px; margin-bottom: 10px; }
         .title { color: #134e4a; font-size: 28px; font-weight: 800; margin-bottom: 15px; }
         .task-box {
             background: #f0fdfa; border: 2px dashed #99f6e4;
@@ -69,7 +69,6 @@
             display: none; background: #fbbf24; color: #78350f;
             border: none; padding: 20px 45px; font-size: 24px; font-weight: 900;
             border-radius: 25px; cursor: pointer; margin: 0 auto;
-            box-shadow: 0 10px 20px rgba(251, 191, 36, 0.4);
         }
     </style>
 </head>
@@ -79,11 +78,11 @@
 
     <div id="app-container">
         <div class="card-3d">
-            <div class="icon">🔔</div>
-            <div class="title">Время разминки!</div>
-            <div class="task-box">Встаньте и потянитесь вверх в течение 30 секунд.</div>
+            <div class="icon">🧘</div>
+            <div class="title">Минутка осознанности</div>
+            <div class="task-box">Закройте глаза и сделайте 3 глубоких вдоха. Это поможет мозгу перезагрузиться.</div>
             <div id="timer-val" class="timer-circle">30</div>
-            <button id="btn-ready" class="btn-ready">Я закончил! 🔥</button>
+            <button id="btn-ready" class="btn-ready">Я здесь! ✨</button>
         </div>
     </div>
 
@@ -104,7 +103,9 @@
         function startWork() {
             const timer = setInterval(() => {
                 seconds++;
-                progressBar.style.width = (seconds / WORK_TIME * 100) + '%';
+                // Обновляем прогресс-бар
+                let progressPercent = (seconds / WORK_TIME * 100);
+                progressBar.style.width = progressPercent + '%';
                 
                 if (seconds >= WORK_TIME) {
                     clearInterval(timer);
@@ -114,15 +115,20 @@
         }
 
         function triggerPause() {
+            // Сначала включаем визуальную часть
             container.classList.add('active');
             
-            // Пытаемся воспроизвести звук
-            sound.play().catch(e => console.log("Нужен клик по странице для звука"));
+            // И В ЭТОТ ЖЕ МОМЕНТ запускаем звук
+            sound.currentTime = 0; // Сброс звука на начало
+            sound.play().catch(e => console.log("Браузер заблокировал автоплей. Нужен клик пользователя."));
 
+            // Запускаем обратный отсчет паузы
             let pLeft = PAUSE_TIME;
             const pInterval = setInterval(() => {
                 pLeft--;
-                timerVal.innerText = pLeft;
+                if (pLeft >= 0) {
+                    timerVal.innerText = pLeft;
+                }
                 if (pLeft <= 0) {
                     clearInterval(pInterval);
                     timerVal.style.display = 'none';
@@ -131,10 +137,13 @@
             }, 1000);
         }
 
-        btnReady.onclick = () => location.reload();
+        btnReady.onclick = () => {
+            // Полная перезагрузка для чистого нового цикла
+            location.reload();
+        };
 
-        // Запуск через небольшую паузу
-        setTimeout(startWork, 1000);
+        // Запуск основного цикла
+        startWork();
     </script>
 </body>
 </html>
