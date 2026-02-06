@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Progress Save</title>
+    <title>Neuro-Stop Full Sync</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background: transparent !important;
             font-family: 'Segoe UI', Roboto, sans-serif;
         }
-
         #progress-wrapper {
             position: absolute; top: 0; left: 0; width: 100%; height: 8px;
             background: rgba(255, 255, 255, 0.1); z-index: 1001;
@@ -21,23 +20,19 @@
             box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
             transition: width 0.5s linear;
         }
-
         #app-container {
             width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
-            perspective: 1500px;
-            pointer-events: none; 
+            perspective: 1500px; pointer-events: none; 
             background: rgba(15, 23, 42, 0); 
             backdrop-filter: blur(0px);
             transition: background 0.5s ease, backdrop-filter 0.5s ease;
         }
-
         #app-container.active {
             pointer-events: all;
             background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(10px);
         }
-
         .card-3d {
             display: none; opacity: 0;
             width: 450px; max-width: 85%;
@@ -47,11 +42,9 @@
             transform: translateY(30px);
             transition: all 0.5s ease;
         }
-
         #app-container.active .card-3d {
             display: block; opacity: 1; transform: translateY(0);
         }
-
         .icon { font-size: 70px; margin-bottom: 10px; }
         .title { color: #134e4a; font-size: 28px; font-weight: 800; margin-bottom: 15px; }
         .task-box {
@@ -74,59 +67,83 @@
 <body>
 
     <div id="progress-wrapper"><div id="progress-bar"></div></div>
-
     <div id="app-container">
         <div class="card-3d">
-            <div class="icon">🧘</div>
-            <div class="title">Минутка осознанности</div>
-            <div class="task-box">Закройте глаза и сделайте 3 глубоких вдоха. Это поможет мозгу перезагрузиться.</div>
+            <div id="task-icon" class="icon">🧘</div>
+            <div class="title">Минутка пользы</div>
+            <div id="task-text" class="task-box">Задание...</div>
             <div id="timer-val" class="timer-circle">30</div>
-            <button id="btn-ready" class="btn-ready">Я здесь! ✨</button>
+            <button id="btn-ready" class="btn-ready">Готово! ✨</button>
         </div>
     </div>
 
     <script>
-        const WORK_TIME = 15; 
-        const PAUSE_TIME = 30;
-        const STORAGE_KEY = "neuro_timer_seconds";
+        const WORK_TIME_SEC = 15; 
+        const PAUSE_TIME_SEC = 30;
+        
+        const TASKS = [
+            { icon: "🧘", text: "Закройте глаза и сделайте 3 глубоких вдоха." },
+            { icon: "💧", text: "Сделайте несколько глотков воды." },
+            { icon: "👋", text: "Посмотрите в окно на самый удаленный объект 20 секунд." },
+            { icon: "🤸", text: "Встаньте и потянитесь всем телом вверх." },
+            { icon: "👐", text: "Разотрите ладони друг об друга до тепла." },
+            { icon: "🦒", text: "Медленно наклоните голову вправо, потом влево." }
+        ];
 
         const progressBar = document.getElementById('progress-bar');
         const container = document.getElementById('app-container');
         const timerVal = document.getElementById('timer-val');
         const btnReady = document.getElementById('btn-ready');
+        const taskText = document.getElementById('task-text');
+        const taskIcon = document.getElementById('task-icon');
 
-        // 1. Загружаем сохраненный прогресс или начинаем с 0
-        let seconds = parseInt(localStorage.getItem(STORAGE_KEY)) || 0;
-
-        function updateUI() {
-            let progressPercent = (seconds / WORK_TIME * 100);
-            progressBar.style.width = Math.min(progressPercent, 100) + '%';
+        function getTask() {
+            let usedTasks = JSON.parse(localStorage.getItem('used_tasks') || '[]');
+            if (usedTasks.length >= TASKS.length) usedTasks = [];
+            
+            const availableTasks = TASKS.filter((_, index) => !usedTasks.includes(index));
+            const randomIndex = Math.floor(Math.random() * availableTasks.length);
+            const task = availableTasks[randomIndex];
+            const originalIndex = TASKS.indexOf(task);
+            
+            usedTasks.push(originalIndex);
+            localStorage.setItem('used_tasks', JSON.stringify(usedTasks));
+            return task;
         }
 
-        function startWork() {
-            updateUI(); // Сразу ставим полоску на нужное место при загрузке
+        function initTimer() {
+            let endTime = localStorage.getItem('neuro_end_time');
             
-            const timer = setInterval(() => {
-                if (seconds < WORK_TIME) {
-                    seconds++;
-                    localStorage.setItem(STORAGE_KEY, seconds); // Сохраняем каждую секунду
-                    updateUI();
-                } else {
-                    clearInterval(timer);
+            if (!endTime) {
+                endTime = Date.now() + (WORK_TIME_SEC * 1000);
+                localStorage.setItem('neuro_end_time', endTime);
+            }
+
+            const timerInterval = setInterval(() => {
+                const now = Date.now();
+                const remaining = endTime - now;
+
+                if (remaining <= 0) {
+                    clearInterval(timerInterval);
+                    progressBar.style.width = '100%';
                     triggerPause();
+                } else {
+                    const progress = 100 - (remaining / (WORK_TIME_SEC * 1000) * 100);
+                    progressBar.style.width = progress + '%';
                 }
             }, 1000);
         }
 
         function triggerPause() {
+            const task = getTask();
+            taskText.innerText = task.text;
+            taskIcon.innerText = task.icon;
             container.classList.add('active');
 
-            let pLeft = PAUSE_TIME;
+            let pLeft = PAUSE_TIME_SEC;
             const pInterval = setInterval(() => {
                 pLeft--;
-                if (pLeft >= 0) {
-                    timerVal.innerText = pLeft;
-                }
+                if (pLeft >= 0) timerVal.innerText = pLeft;
                 if (pLeft <= 0) {
                     clearInterval(pInterval);
                     timerVal.style.display = 'none';
@@ -136,13 +153,11 @@
         }
 
         btnReady.onclick = () => {
-            // При нажатии на кнопку обнуляем прогресс в памяти и перезагружаем
-            localStorage.setItem(STORAGE_KEY, 0);
+            localStorage.removeItem('neuro_end_time');
             location.reload();
         };
 
-        // Запуск
-        startWork();
+        initTimer();
     </script>
 </body>
 </html>
