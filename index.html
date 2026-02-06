@@ -3,87 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Audio</title>
+    <title>Neuro-Stop Transparent</title>
     <style>
-       body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
+        /* Убираем все возможные заливки фона */
+        html, body {
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%;
             overflow: hidden; 
-            background: transparent !important; /* Убираем черный фон */
+            background-color: rgba(0,0,0,0) !important; /* Полная прозрачность */
             font-family: 'Segoe UI', Roboto, sans-serif;
         }
-
 
         #progress-wrapper {
             position: absolute; top: 0; left: 0; width: 100%; height: 8px;
             background: rgba(255, 255, 255, 0.1); z-index: 1000;
         }
+
         #progress-bar {
             width: 0%; height: 100%;
             background: linear-gradient(90deg, #2dd4bf, #00acc1);
-            box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
             transition: width 0.3s linear;
         }
 
-          #app-container {
+        #app-container {
             width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
-            perspective: 1500px;
-            background: transparent !important; /* Здесь тоже ставим прозрачность */
-            transition: background 0.6s ease;
+            background: transparent !important;
         }
 
-        /* Оставляем фон только для самой карточки с заданием */
+        /* Стиль карточки, которая появится после таймера */
         .card-3d {
-            display: none; width: 500px; max-width: 90%;
-            background: #ffffff; /* Белая карточка останется белой */
-            border-radius: 50px; padding: 45px;
+            display: none; 
+            width: 450px; 
+            max-width: 85%;
+            background: #ffffff !important; /* Только карточка будет белой */
+            border-radius: 40px; 
+            padding: 40px;
             text-align: center;
-            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-            /* ... остальной код ... */
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            border: 1px solid #eee;
         }
 
-        /* Состояние паузы */
-        .paused-bg {
-            background: rgba(15, 23, 42, 0.9) !important;
-            backdrop-filter: blur(8px);
-        }
+        .show-card { display: block !important; }
 
-        .card-3d {
-            display: none; width: 500px; max-width: 90%;
-            background: #ffffff; border-radius: 50px; padding: 45px;
-            text-align: center;
-            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-            transform: translateY(40px) rotateX(10deg);
-            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .show-card {
-            display: block !important;
-            opacity: 1;
-            transform: translateY(0) rotateX(0deg);
-        }
-
-        .icon { font-size: 70px; margin-bottom: 15px; }
-        .title { color: #134e4a; font-size: 30px; font-weight: 800; margin-bottom: 20px; }
+        .icon { font-size: 60px; margin-bottom: 10px; }
+        .title { color: #134e4a; font-size: 26px; font-weight: 800; margin-bottom: 15px; }
         .task-box {
             background: #f0fdfa; border: 2px dashed #99f6e4;
-            border-radius: 35px; padding: 35px; margin: 25px 0;
-            font-size: 24px; color: #0f172a; line-height: 1.5;
+            border-radius: 25px; padding: 25px; margin: 20px 0;
+            font-size: 20px; color: #0f172a;
         }
-        .action-area { min-height: 100px; display: flex; align-items: center; justify-content: center; }
         .timer-circle {
-            width: 90px; height: 90px; border-radius: 50%;
+            width: 80px; height: 80px; border-radius: 50%;
             background: #2dd4bf; display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 36px; font-weight: bold;
+            color: white; font-size: 32px; font-weight: bold; margin: 0 auto;
         }
         .btn-ready {
             display: none; background: #fbbf24; color: #78350f;
-            border: none; padding: 22px 50px; font-size: 28px; font-weight: 900;
-            border-radius: 30px; cursor: pointer;
-            box-shadow: 0 12px 24px rgba(251, 191, 36, 0.5);
-            animation: pulse 2s infinite;
+            border: none; padding: 20px 40px; font-size: 24px; font-weight: 800;
+            border-radius: 25px; cursor: pointer; margin: 0 auto;
         }
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
     </style>
 </head>
 <body>
@@ -92,53 +73,46 @@
 
     <div id="app-container">
         <div class="card-3d" id="card">
-            <div class="icon">✨</div>
-            <div class="title">Минутка пользы</div>
-            <div id="task-content" class="task-box">Сделайте глубокий вдох и выдох...</div>
-            <div class="action-area">
-                <div id="timer-val" class="timer-circle">30</div>
-                <button id="btn-ready" class="btn-ready">Я готов! 🔥</button>
-            </div>
+            <div class="icon">💡</div>
+            <div class="title">Перерыв на осознанность</div>
+            <div id="task-content" class="task-box">Медленно выпейте глоток воды или просто потянитесь.</div>
+            <div id="timer-val" class="timer-circle">30</div>
+            <button id="btn-ready" class="btn-ready">Продолжить</button>
         </div>
     </div>
 
     <script>
-        const GAME_DURATION_SEC = 15; 
-        const PAUSE_DURATION_SEC = 30;
-        
+        // Настройки времени (в секундах)
+        const WORK_TIME = 15; 
+        const PAUSE_TIME = 30;
+
         const progressBar = document.getElementById('progress-bar');
-        const appContainer = document.getElementById('app-container');
         const card = document.getElementById('card');
         const timerVal = document.getElementById('timer-val');
         const btnReady = document.getElementById('btn-ready');
 
-        let timeLeft = GAME_DURATION_SEC;
+        let secondsPassed = 0;
 
-        function startTimer() {
-            const timer = setInterval(() => {
-                timeLeft--;
-                const progress = ((GAME_DURATION_SEC - timeLeft) / GAME_DURATION_SEC) * 100;
+        function mainTimer() {
+            const interval = setInterval(() => {
+                secondsPassed++;
+                let progress = (secondsPassed / WORK_TIME) * 100;
                 progressBar.style.width = progress + '%';
 
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
+                if (secondsPassed >= WORK_TIME) {
+                    clearInterval(interval);
                     showPause();
                 }
             }, 1000);
         }
 
         function showPause() {
-            appContainer.classList.add('paused-bg');
             card.classList.add('show-card');
-            startPauseTimer();
-        }
-
-        function startPauseTimer() {
-            let pTime = PAUSE_DURATION_SEC;
+            let pLeft = PAUSE_TIME;
             const pInterval = setInterval(() => {
-                pTime--;
-                timerVal.innerText = pTime;
-                if (pTime <= 0) {
+                pLeft--;
+                timerVal.innerText = pLeft;
+                if (pLeft <= 0) {
                     clearInterval(pInterval);
                     timerVal.style.display = 'none';
                     btnReady.style.display = 'block';
@@ -146,12 +120,9 @@
             }, 1000);
         }
 
-        btnReady.onclick = () => {
-            location.reload(); // Перезапуск цикла
-        };
+        btnReady.onclick = () => location.reload();
 
-        // Запуск
-        startTimer();
+        mainTimer();
     </script>
 </body>
 </html>
