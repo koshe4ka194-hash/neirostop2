@@ -3,183 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop 3D Hologram</title>
+    <title>Neuro-Stop Audio</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; background: transparent;
-            font-family: 'Segoe UI', Tahoma, sans-serif;
+            overflow: hidden; background: #0f172a; /* Темный фон для надежности */
+            font-family: 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Контейнер: абсолютно прозрачный, пока нет паузы */
+        #progress-wrapper {
+            position: absolute; top: 0; left: 0; width: 100%; height: 8px;
+            background: rgba(255, 255, 255, 0.1); z-index: 1000;
+        }
+        #progress-bar {
+            width: 0%; height: 100%;
+            background: linear-gradient(90deg, #2dd4bf, #00acc1);
+            box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
+            transition: width 0.3s linear;
+        }
+
         #app-container {
             width: 100%; height: 100%;
-            pointer-events: none; 
             display: flex; justify-content: center; align-items: center;
-            perspective: 1200px; /* Глубина 3D */
-            transition: background 0.5s;
+            perspective: 1500px;
+            transition: background 0.6s ease;
         }
 
-        /* Защитный слой во время паузы (невидимый, но блокирует клики в игру) */
-        #app-container.paused {
-            pointer-events: all; 
-            background: rgba(0,0,0,0.05); /* Едва заметное изменение тона */
+        /* Состояние паузы */
+        .paused-bg {
+            background: rgba(15, 23, 42, 0.9) !important;
+            backdrop-filter: blur(8px);
         }
 
-        /* Объемная 3D карточка */
         .card-3d {
-            display: none;
-            opacity: 0;
-            width: 400px;
-            max-width: 85%;
-            background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); /* Спокойный мятно-белый */
-            border-radius: 40px;
-            padding: 35px;
+            display: none; width: 500px; max-width: 90%;
+            background: #ffffff; border-radius: 50px; padding: 45px;
             text-align: center;
-            position: relative;
-            
-            /* Эффект свечения и объема */
-            box-shadow: 
-                0 30px 60px rgba(0,0,0,0.12), 
-                0 0 30px rgba(178, 235, 242, 0.6), /* Внутреннее свечение */
-                inset 0 0 15px rgba(255,255,255,1);
-            
-            border: 1px solid rgba(255,255,255,0.8);
-            transform: rotateX(10deg) rotateY(-5deg) translateZ(50px);
-            transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+            transform: translateY(40px) rotateX(10deg);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        #app-container.paused .card-3d {
-            display: block;
+        .show-card {
+            display: block !important;
             opacity: 1;
-            transform: rotateX(0deg) rotateY(0deg) translateZ(100px);
+            transform: translateY(0) rotateX(0deg);
         }
 
-        /* Иконка и заголовок */
-        .icon { font-size: 45px; margin-bottom: 10px; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.1)); }
-        
-        .title {
-            color: #006064; font-size: 22px; font-weight: 700;
-            margin-bottom: 15px;
-        }
-
-        /* Блок задания */
+        .icon { font-size: 70px; margin-bottom: 15px; }
+        .title { color: #134e4a; font-size: 30px; font-weight: 800; margin-bottom: 20px; }
         .task-box {
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 20px;
-            padding: 20px;
-            margin: 20px 0;
-            border: 1px dashed #4dd0e1;
-            min-height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: #37474f;
-            line-height: 1.4;
+            background: #f0fdfa; border: 2px dashed #99f6e4;
+            border-radius: 35px; padding: 35px; margin: 25px 0;
+            font-size: 24px; color: #0f172a; line-height: 1.5;
         }
-
-        /* Таймер */
+        .action-area { min-height: 100px; display: flex; align-items: center; justify-content: center; }
         .timer-circle {
-            width: 70px; height: 70px;
-            border-radius: 50%;
-            background: #4dd0e1;
-            display: flex; align-items: center; justify-content: center;
-            margin: 0 auto;
-            color: white; font-size: 28px; font-weight: bold;
-            box-shadow: 0 5px 15px rgba(77, 208, 225, 0.4);
+            width: 90px; height: 90px; border-radius: 50%;
+            background: #2dd4bf; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 36px; font-weight: bold;
         }
-
-        /* Анимация парения */
-        @keyframes float {
-            0% { transform: translateY(0px) rotateX(0deg); }
-            50% { transform: translateY(-15px) rotateX(2deg); }
-            100% { transform: translateY(0px) rotateX(0deg); }
+        .btn-ready {
+            display: none; background: #fbbf24; color: #78350f;
+            border: none; padding: 22px 50px; font-size: 28px; font-weight: 900;
+            border-radius: 30px; cursor: pointer;
+            box-shadow: 0 12px 24px rgba(251, 191, 36, 0.5);
+            animation: pulse 2s infinite;
         }
-        .floating { animation: float 4s infinite ease-in-out; }
-
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
     </style>
 </head>
 <body>
 
-    <div id="app-container">
-        <div class="card-3d floating" id="card">
-            <div class="icon">🌿</div>
-            <div class="title" id="status-text">Время отдыха!</div>
-            
-            <div class="task-box" id="task-content">
-                Загружаю задание...
-            </div>
+    <div id="progress-wrapper"><div id="progress-bar"></div></div>
 
-            <div class="timer-circle" id="timer-val">10</div>
+    <div id="app-container">
+        <div class="card-3d" id="card">
+            <div class="icon">✨</div>
+            <div class="title">Минутка пользы</div>
+            <div id="task-content" class="task-box">Сделайте глубокий вдох и выдох...</div>
+            <div class="action-area">
+                <div id="timer-val" class="timer-circle">30</div>
+                <button id="btn-ready" class="btn-ready">Я готов! 🔥</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // --- НАСТРОЙКИ ---
-        const params = new URLSearchParams(window.location.search);
-        const GAME_TIME_LIMIT = (parseFloat(params.get('activeMinutes')) || 0.2) * 60; // Перевод в сек.
-        const PAUSE_TIME = 60; // Длительность выполнения задания
-
-        // СПИСОК НЕЙРО-ЗАДАНИЙ
-        const neuroTasks = [
-            "Посмотри на кончик носа, а затем вдаль. Повтори 5 раз! 👀",
-            "Нарисуй в воздухе обеими руками одновременно круг! ⭕",
-            "Дотронься правой рукой до левого уха, а левой до носа. Поменяй! 🖐️",
-            "Представь, что ты задуваешь 5 свечей на большом торте! 🎂",
-            "Потри ладошки друг об друга, пока они не станут теплыми! 🔥",
-            "Напиши в воздухе своё имя указательным пальцем! ✍️"
-        ];
-
-        const container = document.getElementById('app-container');
+        const GAME_DURATION_SEC = 12 * 60; 
+        const PAUSE_DURATION_SEC = 30;
+        
+        const progressBar = document.getElementById('progress-bar');
+        const appContainer = document.getElementById('app-container');
         const card = document.getElementById('card');
-        const taskContent = document.getElementById('task-content');
         const timerVal = document.getElementById('timer-val');
-        const statusText = document.getElementById('status-text');
+        const btnReady = document.getElementById('btn-ready');
 
-        let playSeconds = 0;
-        let isPaused = false;
+        let timeLeft = GAME_DURATION_SEC;
 
-        // Основной цикл игры
-        setInterval(() => {
-            if (isPaused) return;
-
-            playSeconds++;
-            if (playSeconds >= GAME_TIME_LIMIT) {
-                startNeuroPause();
-            }
-        }, 1000);
-
-        function startNeuroPause() {
-            isPaused = true;
-            playSeconds = 0;
-
-            // Выбираем случайное задание
-            const randomTask = neuroTasks[Math.floor(Math.random() * neuroTasks.length)];
-            taskContent.innerHTML = randomTask;
-            statusText.innerText = "Полезная пауза";
-            
-            // Показываем карточку
-            container.classList.add('paused');
-            
-            let timeLeft = PAUSE_TIME;
-            timerVal.innerText = timeLeft;
-
-            const countdown = setInterval(() => {
+        function startTimer() {
+            const timer = setInterval(() => {
                 timeLeft--;
-                timerVal.innerText = timeLeft;
+                const progress = ((GAME_DURATION_SEC - timeLeft) / GAME_DURATION_SEC) * 100;
+                progressBar.style.width = progress + '%';
 
                 if (timeLeft <= 0) {
-                    clearInterval(countdown);
-                    endNeuroPause();
+                    clearInterval(timer);
+                    showPause();
                 }
             }, 1000);
         }
 
-        function endNeuroPause() {
-            container.classList.remove('paused');
-            isPaused = false;
+        function showPause() {
+            appContainer.classList.add('paused-bg');
+            card.classList.add('show-card');
+            startPauseTimer();
         }
+
+        function startPauseTimer() {
+            let pTime = PAUSE_DURATION_SEC;
+            const pInterval = setInterval(() => {
+                pTime--;
+                timerVal.innerText = pTime;
+                if (pTime <= 0) {
+                    clearInterval(pInterval);
+                    timerVal.style.display = 'none';
+                    btnReady.style.display = 'block';
+                }
+            }, 1000);
+        }
+
+        btnReady.onclick = () => {
+            location.reload(); // Перезапуск цикла
+        };
+
+        // Запуск
+        startTimer();
     </script>
 </body>
 </html>
