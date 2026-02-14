@@ -3,161 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuro-Stop Full Sync</title>
+    <title>Neuro-Pause Engine</title>
     <style>
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; background: transparent !important;
-            font-family: 'Segoe UI', Roboto, sans-serif;
-        }
-        #progress-wrapper {
-            position: absolute; top: 0; left: 0; width: 100%; height: 8px;
-            background: rgba(255, 255, 255, 0.1); z-index: 1001;
-        }
-        #progress-bar {
-            width: 0%; height: 100%;
-            background: linear-gradient(90deg, #2dd4bf, #00acc1);
-            box-shadow: 0 0 15px rgba(45, 212, 191, 0.6);
-            transition: width 0.5s linear;
-        }
-        #app-container {
-            width: 100%; height: 100%;
-            display: flex; justify-content: center; align-items: center;
-            perspective: 1500px; pointer-events: none; 
-            background: rgba(15, 23, 42, 0); 
-            backdrop-filter: blur(0px);
-            transition: background 0.5s ease, backdrop-filter 0.5s ease;
-        }
-        #app-container.active {
-            pointer-events: all;
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(10px);
-        }
-        .card-3d {
-            display: none; opacity: 0;
-            width: 450px; max-width: 85%;
-            background: #ffffff; border-radius: 40px; padding: 40px;
-            text-align: center;
-            box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-            transform: translateY(30px);
-            transition: all 0.5s ease;
-        }
-        #app-container.active .card-3d {
-            display: block; opacity: 1; transform: translateY(0);
-        }
-        .icon { font-size: 70px; margin-bottom: 10px; }
-        .title { color: #134e4a; font-size: 28px; font-weight: 800; margin-bottom: 15px; }
-        .task-box {
-            background: #f0fdfa; border: 2px dashed #99f6e4;
-            border-radius: 30px; padding: 30px; margin: 20px 0;
-            font-size: 22px; color: #0f172a; line-height: 1.4;
-        }
-        .timer-circle {
-            width: 80px; height: 80px; border-radius: 50%;
-            background: #2dd4bf; display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 32px; font-weight: bold; margin: 0 auto;
-        }
-        .btn-ready {
-            display: none; background: #fbbf24; color: #78350f;
-            border: none; padding: 20px 45px; font-size: 24px; font-weight: 900;
-            border-radius: 25px; cursor: pointer; margin: 0 auto;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent !important; display: flex; align-items: center; justify-content: center; }
+        #modal { display: none; position: fixed; inset: 0; align-items: center; justify-content: center; z-index: 9999; background: transparent; }
+        #modal.active { display: flex; }
+        .card { background: white; padding: 25px; border-radius: 35px; text-align: center; width: 280px; box-shadow: 0 15px 50px rgba(0,0,0,0.15); border: 2px solid #2dd4bf; box-sizing: border-box; }
+        .icon { font-size: 45px; margin-bottom: 10px; display: block; }
+        .img-content { width: 100%; border-radius: 20px; margin-bottom: 15px; display: none; }
+        .title { font-weight: 800; font-size: 20px; color: #134e4a; margin-bottom: 15px; }
+        .task { background: #f0fdfa; padding: 15px; border-radius: 20px; font-size: 16px; color: #1e293b; border: 1px dashed #2dd4bf; margin-bottom: 15px; line-height: 1.4; }
+        .timer { width: 50px; height: 50px; background: #2dd4bf; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; margin: 0 auto; }
+        .btn { background: #fbbf24; color: #78350f; border: none; padding: 15px; border-radius: 18px; font-size: 16px; font-weight: 900; cursor: pointer; width: 100%; display: none; box-shadow: 0 3px 0 #d97706; }
     </style>
 </head>
 <body>
 
-    <div id="progress-wrapper"><div id="progress-bar"></div></div>
-    <div id="app-container">
-        <div class="card-3d">
-            <div id="task-icon" class="icon">🧘</div>
-            <div class="title">Минутка пользы</div>
-            <div id="task-text" class="task-box">Задание...</div>
-            <div id="timer-val" class="timer-circle">30</div>
-            <button id="btn-ready" class="btn-ready">Готово! ✨</button>
-        </div>
+<div id="modal">
+    <div class="card">
+        <span id="ci" class="icon"></span>
+        <img id="cimg" class="img-content" src="">
+        <div id="ctitle" class="title"></div>
+        <div id="ctext" class="task"></div>
+        <div id="ctimer" class="timer"></div>
+        <button id="cbtn" class="btn"></button>
     </div>
+</div>
 
-    <script>
-        const WORK_TIME_SEC = 15; 
-        const PAUSE_TIME_SEC = 30;
+<script>
+    (function() {
+        const urlParams = new URLSearchParams(window.location.search);
         
-        const TASKS = [
-            { icon: "🧘", text: "Закройте глаза и сделайте 3 глубоких вдоха." },
-            { icon: "💧", text: "Сделайте несколько глотков воды." },
-            { icon: "👋", text: "Посмотрите в окно на самый удаленный объект 20 секунд." },
-            { icon: "🤸", text: "Встаньте и потянитесь всем телом вверх." },
-            { icon: "👐", text: "Разотрите ладони друг об друга до тепла." },
-            { icon: "🦒", text: "Медленно наклоните голову вправо, потом влево." }
-        ];
+        // Получаем параметры из ссылки или ставим стандартные
+        const workMin = parseInt(urlParams.get('w')) || 12;
+        const pauseSec = parseInt(urlParams.get('p')) || 30;
+        const font = urlParams.get('f') || 'sans-serif';
+        const lang = urlParams.get('l') || 'RU';
+        const tasksRaw = urlParams.get('t') ? decodeURIComponent(urlParams.get('t')).split(';') : [];
 
-        const progressBar = document.getElementById('progress-bar');
-        const container = document.getElementById('app-container');
-        const timerVal = document.getElementById('timer-val');
-        const btnReady = document.getElementById('btn-ready');
-        const taskText = document.getElementById('task-text');
-        const taskIcon = document.getElementById('task-icon');
-
-        function getTask() {
-            let usedTasks = JSON.parse(localStorage.getItem('used_tasks') || '[]');
-            if (usedTasks.length >= TASKS.length) usedTasks = [];
-            
-            const availableTasks = TASKS.filter((_, index) => !usedTasks.includes(index));
-            const randomIndex = Math.floor(Math.random() * availableTasks.length);
-            const task = availableTasks[randomIndex];
-            const originalIndex = TASKS.indexOf(task);
-            
-            usedTasks.push(originalIndex);
-            localStorage.setItem('used_tasks', JSON.stringify(usedTasks));
-            return task;
+        // Применяем шрифт
+        if (font === 'OpenDyslexic') {
+            const style = document.createElement('style');
+            style.innerHTML = "@font-face { font-family: 'OpenDyslexic'; src: url('https://cdn.jsdelivr.net/npm/opendyslexic@1.0.3/OpenDyslexic-Regular.otf'); } body { font-family: 'OpenDyslexic', sans-serif !important; }";
+            document.head.appendChild(style);
+        } else {
+            document.body.style.fontFamily = font + ', sans-serif';
         }
 
-        function initTimer() {
-            let endTime = localStorage.getItem('neuro_end_time');
-            
-            if (!endTime) {
-                endTime = Date.now() + (WORK_TIME_SEC * 1000);
-                localStorage.setItem('neuro_end_time', endTime);
+        // Локализация
+        const i18n = {
+            RU: { h: "Минутка пользы", b: "ГОТОВО! ✨" },
+            EN: { h: "Mindful Break", b: "DONE! ✨" },
+            DE: { h: "Kleine Pause", b: "FERTIG! ✨" },
+            CN: { h: "休息时间", b: "完成! ✨" }
+        };
+        const text = i18n[lang] || i18n.RU;
+        document.getElementById('ctitle').innerText = text.h;
+        document.getElementById('cbtn').innerText = text.b;
+
+        // Таймер ожидания
+        const workMs = workMin * 60 * 1000;
+        let targetTime = Date.now() + workMs;
+
+        try {
+            const saved = localStorage.getItem('neuro_target');
+            if (saved && parseInt(saved) > Date.now()) {
+                targetTime = parseInt(saved);
+            } else {
+                localStorage.setItem('neuro_target', targetTime);
+            }
+        } catch(e) {}
+
+        const mainTimer = setInterval(() => {
+            if (Date.now() >= targetTime) {
+                clearInterval(mainTimer);
+                showPause();
+            }
+        }, 1000);
+
+        function showPause() {
+            // Выбираем случайное задание
+            if (tasksRaw.length > 0) {
+                const randomTask = tasksRaw[Math.floor(Math.random() * tasksRaw.length)];
+                const [icon, content] = randomTask.split('|').map(s => s.trim());
+                
+                document.getElementById('ci').innerText = icon || '🧘';
+                
+                if (content && content.startsWith('http')) {
+                    document.getElementById('cimg').src = content;
+                    document.getElementById('cimg').style.display = 'block';
+                    document.getElementById('ctext').style.display = 'none';
+                } else {
+                    document.getElementById('ctext').innerText = content || 'Сделайте паузу';
+                    document.getElementById('cimg').style.display = 'none';
+                    document.getElementById('ctext').style.display = 'block';
+                }
             }
 
-            const timerInterval = setInterval(() => {
-                const now = Date.now();
-                const remaining = endTime - now;
-
-                if (remaining <= 0) {
-                    clearInterval(timerInterval);
-                    progressBar.style.width = '100%';
-                    triggerPause();
-                } else {
-                    const progress = 100 - (remaining / (WORK_TIME_SEC * 1000) * 100);
-                    progressBar.style.width = progress + '%';
+            document.getElementById('modal').classList.add('active');
+            
+            let left = pauseSec;
+            document.getElementById('ctimer').innerText = left;
+            
+            const pTimer = setInterval(() => {
+                left--;
+                document.getElementById('ctimer').innerText = left;
+                if (left <= 0) {
+                    clearInterval(pTimer);
+                    document.getElementById('ctimer').style.display = 'none';
+                    document.getElementById('cbtn').style.display = 'block';
                 }
             }, 1000);
         }
 
-        function triggerPause() {
-            const task = getTask();
-            taskText.innerText = task.text;
-            taskIcon.innerText = task.icon;
-            container.classList.add('active');
-
-            let pLeft = PAUSE_TIME_SEC;
-            const pInterval = setInterval(() => {
-                pLeft--;
-                if (pLeft >= 0) timerVal.innerText = pLeft;
-                if (pLeft <= 0) {
-                    clearInterval(pInterval);
-                    timerVal.style.display = 'none';
-                    btnReady.style.display = 'block';
-                }
-            }, 1000);
-        }
-
-        btnReady.onclick = () => {
-            localStorage.removeItem('neuro_end_time');
+        document.getElementById('cbtn').onclick = () => {
+            localStorage.removeItem('neuro_target');
             location.reload();
         };
-
-        initTimer();
-    </script>
+    })();
+</script>
 </body>
 </html>
